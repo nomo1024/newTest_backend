@@ -22,4 +22,26 @@ public interface UserConstant {
      */
     int ADMIN_ROLE = 1;
 
+    //  ------- 用户状态 --------
+
+    /**
+     * 离线
+     */
+    int STATUS_OFFLINE = 0;
+
+    /**
+     * 在线
+     */
+    int STATUS_ONLINE = 1;
+
+    /**
+     * 隐身
+     */
+    int STATUS_INVISIBLE = 2;
+
+    /**
+     * 忙碌
+     */
+    int STATUS_BUSY = 3;
+
 }

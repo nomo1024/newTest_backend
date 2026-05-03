@@ -16,7 +16,6 @@ import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
-
 import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -114,14 +113,14 @@ public class UserController {
                 queryWrapper.eq("userRole", userQueryRequest.getUserRole());
             }
             if (userQueryRequest.getUserStatus() != null) {
-                if (userQueryRequest.getUserStatus() <0 || userQueryRequest.getUserStatus() >1){
+                if (userQueryRequest.getUserStatus() < 0 || userQueryRequest.getUserStatus() > 1) {
                     throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户状态只能为0或1");
                 }
                 queryWrapper.eq("userStatus", userQueryRequest.getUserStatus());
             }
 
             Date now = new Date();
-            if (userQueryRequest.getCreateTimeTo() != null) {
+            if (userQueryRequest.getCreateTimeFrom() != null) {
                 if (userQueryRequest.getCreateTimeFrom().after(now)) {
                     throw new BusinessException(ErrorCode.PARAMS_ERROR, "开始时间不能晚于当前时间");
                 }

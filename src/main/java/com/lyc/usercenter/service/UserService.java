@@ -77,5 +77,14 @@ public interface UserService extends IService<User> {
      */
     boolean isAdmin(User loginUser);
 
+    /**
+     * 更新用户状态
+     *
+     * @param userId    用户ID
+     * @param status    状态：0-离线 1-在线 2-隐身 3-忙碌
+     * @param loginUser 当前登录用户
+     * @return 更新结果
+     */
+    int updateUserStatus(Long userId, Integer status, User loginUser);
 
 }

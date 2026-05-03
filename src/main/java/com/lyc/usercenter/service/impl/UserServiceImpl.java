@@ -270,4 +270,39 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     public boolean isAdmin(User loginUser) {
         return loginUser != null && loginUser.getUserRole() == UserConstant.ADMIN_ROLE;
     }
+
+    /**
+     * 更新用户状态
+     *
+     * @param userId    用户ID
+     * @param status    状态：0-离线 1-在线 2-隐身 3-忙碌
+     * @param loginUser 当前登录用户
+     * @return 更新结果
+     */
+    @Override
+    public int updateUserStatus(Long userId, Integer status, User loginUser) {
+        // 校验参数
+        if (userId == null || userId <= 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户ID不合法");
+        }
+        if (status == null || status < 0 || status > 3) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户状态只能为0(离线)、1(在线)、2(隐身)或3(忙碌)");
+        }
+        // 权限校验：只能修改自己的状态，除非是管理员
+        if (!isAdmin(loginUser) && !userId.equals(loginUser.getId())) {
+            throw new BusinessException(ErrorCode.NO_AUTH, "无权修改其他用户的状态");
+        }
+        // 查询用户是否存在
+        User oldUser = userMapper.selectById(userId);
+        if (oldUser == null) {
+            throw new BusinessException(ErrorCode.NULL_ERROR, "用户不存在");
+        }
+        // 状态未变，无需更新
+        if (status.equals(oldUser.getUserStatus())) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户状态未改变");
+        }
+        // 更新状态
+        oldUser.setUserStatus(status);
+        return userMapper.updateById(oldUser);
+    }
 }
