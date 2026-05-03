@@ -224,6 +224,7 @@ public class SensorServicelmpl extends ServiceImpl<SensorMapper, SourceData> imp
      */
     private static final String TABLE_TEMP = "temperature_data";
 
+    //@todo faker假数据改用MQTT协议生成数据
     // 统一插入假数据，并将数据写入指定表（带平滑变化和范围限制）
     public void insert(SensorMapper mapper, String sourceName, String tableName) {
         SourceData data = new SourceData();

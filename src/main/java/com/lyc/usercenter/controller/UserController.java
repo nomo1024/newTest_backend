@@ -8,6 +8,7 @@ import com.lyc.usercenter.exception.BusinessException;
 import com.lyc.usercenter.model.domain.User;
 import com.lyc.usercenter.model.domain.request.UserDeleteRequest;
 import com.lyc.usercenter.model.domain.request.UserLoginRequest;
+import com.lyc.usercenter.model.domain.request.UserQueryRequest;
 import com.lyc.usercenter.model.domain.request.UserRegisterRequest;
 import com.lyc.usercenter.service.UserService;
 import org.apache.commons.lang3.StringUtils;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 
+import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -83,14 +85,54 @@ public class UserController {
         return ResultUtils.success(safetyUser);
     }
 
-    @GetMapping("/search")
-    public BaseResponse<List<User>> searchUsers(String userAccount, HttpServletRequest request) {
+    @PostMapping("/search")
+    public BaseResponse<List<User>> searchUsers(@RequestBody UserQueryRequest userQueryRequest, HttpServletRequest request) {
         if (!userService.isAdmin(request)) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+            throw new BusinessException(ErrorCode.NO_AUTH);
         }
         QueryWrapper<User> queryWrapper = new QueryWrapper<>();
-        if (StringUtils.isNotBlank(userAccount)) {
-            queryWrapper.like("username", userAccount);
+        if (userQueryRequest != null) {
+            if (userQueryRequest.getId() != null) {
+                if (userQueryRequest.getId() < 1) {
+                    throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户ID必须大于1");
+                }
+                queryWrapper.eq("id", userQueryRequest.getId());
+            }
+            if (StringUtils.isNotBlank(userQueryRequest.getUserAccount())) {
+                queryWrapper.like("userAccount", userQueryRequest.getUserAccount());
+            }
+            if (StringUtils.isNotBlank(userQueryRequest.getPhone())) {
+                queryWrapper.like("phone", userQueryRequest.getPhone());
+            }
+            if (StringUtils.isNotBlank(userQueryRequest.getEmail())) {
+                queryWrapper.like("email", userQueryRequest.getEmail());
+            }
+            if (userQueryRequest.getUserRole() != null) {
+                if (userQueryRequest.getUserRole() < 0 || userQueryRequest.getUserRole() > 1) {
+                    throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户权限只能为0或1");
+                }
+                queryWrapper.eq("userRole", userQueryRequest.getUserRole());
+            }
+            if (userQueryRequest.getUserStatus() != null) {
+                if (userQueryRequest.getUserStatus() <0 || userQueryRequest.getUserStatus() >1){
+                    throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户状态只能为0或1");
+                }
+                queryWrapper.eq("userStatus", userQueryRequest.getUserStatus());
+            }
+
+            Date now = new Date();
+            if (userQueryRequest.getCreateTimeTo() != null) {
+                if (userQueryRequest.getCreateTimeFrom().after(now)) {
+                    throw new BusinessException(ErrorCode.PARAMS_ERROR, "开始时间不能晚于当前时间");
+                }
+                queryWrapper.ge("createTime", userQueryRequest.getCreateTimeFrom());
+            }
+            if (userQueryRequest.getCreateTimeTo() != null) {
+                if (userQueryRequest.getCreateTimeTo().after(now)) {
+                    throw new BusinessException(ErrorCode.PARAMS_ERROR, "结束时间不能晚于当前时间");
+                }
+                queryWrapper.le("createTime", userQueryRequest.getCreateTimeTo());
+            }
         }
         List<User> userList = userService.list(queryWrapper);
         List<User> list = userList.stream().map(user -> userService.getSafetyUser(user)).collect(Collectors.toList());

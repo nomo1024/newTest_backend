@@ -124,9 +124,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             log.info("user login failed, userAccount cannot match userPassword");
             return null;
         }
-        // 3. 用户脱敏
+        // 3. 更新用户状态为在线(1)
+        user.setUserStatus(1);
+        userMapper.updateById(user);
+        // 4. 用户脱敏
         User safetyUser = getSafetyUser(user);
-        // 4. 记录用户的登录态
+        // 5. 记录用户的登录态
         request.getSession().setAttribute(USER_LOGIN_STATE, safetyUser);
         return safetyUser;
     }
@@ -160,6 +163,14 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      */
     @Override
     public int userLogout(HttpServletRequest request) {
+        // 获取当前登录用户
+        Object userObj = request.getSession().getAttribute(USER_LOGIN_STATE);
+        if (userObj != null) {
+            User user = (User) userObj;
+            // 更新用户状态为离线(0)
+            user.setUserStatus(0);
+            userMapper.updateById(user);
+        }
         // 移除登录态
         request.getSession().removeAttribute(USER_LOGIN_STATE);
         return 1;
@@ -171,7 +182,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         if (userId <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        // todo 补充校验，如果用户没有传任何要更新的值，就直接报错，不用执行 update 语句
+
         // 如果是管理员，允许更新任意用户
         // 如果不是管理员，只允许更新当前（自己的）信息
         if (!isAdmin(loginUser) && userId != loginUser.getId()) {
@@ -181,12 +192,44 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         if (oldUser == null) {
             throw new BusinessException(ErrorCode.NULL_ERROR);
         }
-        // 处理密码：如果传了新密码，则加密后更新；如果没传，则保留旧密码，避免将 null 或明文写入数据库
+
+        //处理数据,如果没传,则不更新;如果传了..
+        // 检查传递的值是否和数据库中的值一样
+        boolean allSame = true;
+
+        if (StringUtils.isNotBlank(user.getUserAccount())) {
+            if (!user.getUserAccount().equals(oldUser.getUserAccount())) allSame = false;
+        } else user.setUserAccount(oldUser.getUserAccount());
+
+        if (StringUtils.isNotBlank(user.getPhone())) {
+            if (!user.getPhone().equals(oldUser.getPhone())) allSame = false;
+        } else user.setPhone(oldUser.getPhone());
+
+        if (StringUtils.isNotBlank(user.getEmail())) {
+            if (!user.getEmail().equals(oldUser.getEmail())) allSame = false;
+        } else user.setEmail(oldUser.getEmail());
+
+
+        /**
+         *  处理密码：如果传了新密码，则加密后更新；如果没传，则保留旧密码，避免将 null 或明文写入数据库
+         */
         if (StringUtils.isNotBlank(user.getUserPassword())) {
             String encryptPassword = DigestUtils.md5DigestAsHex((SALT + user.getUserPassword()).getBytes());
             user.setUserPassword(encryptPassword);
-        } else {
-            user.setUserPassword(oldUser.getUserPassword());
+        } else user.setUserPassword(oldUser.getUserPassword());
+
+
+        if (user.getUserStatus() != null) {
+            if (!user.getUserStatus().equals(oldUser.getUserStatus())) allSame = false;
+        } else user.setUserStatus(oldUser.getUserStatus());
+
+
+        if (user.getUserRole() != null) {
+            if (!user.getUserRole().equals(oldUser.getUserRole())) allSame = false;
+        } else user.setUserRole(oldUser.getUserRole());
+
+        if (allSame) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "传递的值和当前值相同，无需更新");
         }
         return userMapper.updateById(user);
     }
