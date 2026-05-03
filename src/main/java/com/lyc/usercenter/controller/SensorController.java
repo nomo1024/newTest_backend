@@ -12,8 +12,8 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/data")
-public class DataController {
+@RequestMapping("/sensor")
+public class SensorController {
 
     @Resource
     private SensorServicelmpl taskManager;
@@ -79,6 +79,7 @@ public class DataController {
         if (limit == null || limit <= 0) limit = 1;
         if (source == null) {
             Map<String, Object> map = new HashMap<>();
+            //5个数据表全部读取
             for (int i = 1; i <= 5; i++) {
                 List<SourceData> list = taskManager.readLatest(i - 1, limit);
                 map.put("source_" + i, list);

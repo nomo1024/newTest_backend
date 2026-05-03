@@ -3,10 +3,6 @@ create table 实训作业.gps_data
     id           bigint auto_increment comment '主键ID'
         primary key,
     col1         double                             null comment '数据1',
-    col2         double                             null comment '数据2',
-    col3         double                             null comment '数据3',
-    col4         double                             null comment '数据4',
-    col5         double                             null comment '数据5',
     collect_time datetime default CURRENT_TIMESTAMP null comment '采集时间'
 )
     comment 'GPS数据表' charset = utf8mb4;
@@ -19,10 +15,6 @@ create table 实训作业.humidity_data
     id           bigint auto_increment comment '主键ID'
         primary key,
     col1         double                             null comment '数据1',
-    col2         double                             null comment '数据2',
-    col3         double                             null comment '数据3',
-    col4         double                             null comment '数据4',
-    col5         double                             null comment '数据5',
     collect_time datetime default CURRENT_TIMESTAMP null comment '采集时间'
 )
     comment '湿度数据表' charset = utf8mb4;
@@ -35,10 +27,6 @@ create table 实训作业.light_data
     id           bigint auto_increment comment '主键ID'
         primary key,
     col1         double                             null comment '数据1',
-    col2         double                             null comment '数据2',
-    col3         double                             null comment '数据3',
-    col4         double                             null comment '数据4',
-    col5         double                             null comment '数据5',
     collect_time datetime default CURRENT_TIMESTAMP null comment '采集时间'
 )
     comment '光照数据表' charset = utf8mb4;
@@ -51,10 +39,6 @@ create table 实训作业.pressure_data
     id           bigint auto_increment comment '主键ID'
         primary key,
     col1         double                             null comment '数据1',
-    col2         double                             null comment '数据2',
-    col3         double                             null comment '数据3',
-    col4         double                             null comment '数据4',
-    col5         double                             null comment '数据5',
     collect_time datetime default CURRENT_TIMESTAMP null comment '采集时间'
 )
     comment '气压数据表' charset = utf8mb4;
@@ -67,10 +51,6 @@ create table 实训作业.temperature_data
     id           bigint auto_increment comment '主键ID'
         primary key,
     col1         double                             null comment '数据1',
-    col2         double                             null comment '数据2',
-    col3         double                             null comment '数据3',
-    col4         double                             null comment '数据4',
-    col5         double                             null comment '数据5',
     collect_time datetime default CURRENT_TIMESTAMP null comment '采集时间'
 )
     comment '温度数据表' charset = utf8mb4;

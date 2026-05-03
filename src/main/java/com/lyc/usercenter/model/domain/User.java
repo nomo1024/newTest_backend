@@ -12,12 +12,16 @@ import java.util.Date;
 @TableName(value = "user")
 @Data
 public class User implements Serializable {
+
     @TableField(exist = false)
     private static final long serialVersionUID = 1L;
+
     @TableId(type = IdType.AUTO)
-    private long id;
+    private Long id;
+
     @TableLogic
     private Integer isDelete;
+
     private String userAccount;
     private String userPassword;
     private String phone;

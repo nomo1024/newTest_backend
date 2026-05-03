@@ -6,6 +6,7 @@ import com.lyc.usercenter.common.ErrorCode;
 import com.lyc.usercenter.common.ResultUtils;
 import com.lyc.usercenter.exception.BusinessException;
 import com.lyc.usercenter.model.domain.User;
+import com.lyc.usercenter.model.domain.request.UserDeleteRequest;
 import com.lyc.usercenter.model.domain.request.UserLoginRequest;
 import com.lyc.usercenter.model.domain.request.UserRegisterRequest;
 import com.lyc.usercenter.service.UserService;
@@ -83,13 +84,13 @@ public class UserController {
     }
 
     @GetMapping("/search")
-    public BaseResponse<List<User>> searchUsers(String username, HttpServletRequest request) {
+    public BaseResponse<List<User>> searchUsers(String userAccount, HttpServletRequest request) {
         if (!userService.isAdmin(request)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         QueryWrapper<User> queryWrapper = new QueryWrapper<>();
-        if (StringUtils.isNotBlank(username)) {
-            queryWrapper.like("username", username);
+        if (StringUtils.isNotBlank(userAccount)) {
+            queryWrapper.like("username", userAccount);
         }
         List<User> userList = userService.list(queryWrapper);
         List<User> list = userList.stream().map(user -> userService.getSafetyUser(user)).collect(Collectors.toList());
@@ -108,14 +109,14 @@ public class UserController {
     }
 
     @PostMapping("/delete")
-    public BaseResponse<Boolean> deleteUser(@RequestBody long id, HttpServletRequest request) {
+    public BaseResponse<Boolean> deleteUser(@RequestBody UserDeleteRequest deleteRequest, HttpServletRequest request) {
         if (!userService.isAdmin(request)) {
             throw new BusinessException(ErrorCode.NO_AUTH);
         }
-        if (id <= 0) {
+        if (deleteRequest.getId() <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        boolean b = userService.removeById(id);
+        boolean b = userService.removeById(deleteRequest.getId());
         return ResultUtils.success(b);
     }
 

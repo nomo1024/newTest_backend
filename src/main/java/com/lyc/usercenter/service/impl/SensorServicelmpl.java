@@ -45,6 +45,13 @@ public class SensorServicelmpl extends ServiceImpl<SensorMapper, SourceData> imp
     @Getter
     public final boolean[] isRunning = new boolean[5];
 
+    // 传感器当前值（用于生成平滑变化的数据）
+    private double currentGps = 100.0;       // 海拔，单位m
+    private double currentTemp = 25.0;       // 温度，单位°C
+    private double currentHumid = 60.0;      // 湿度，单位%RH
+    private double currentLight = 40.0;        // 光照，单位kLux（40 kLux = 40,000 Lux）
+    private double currentPress = 1013.25;   // 气压，单位hPa
+
     // 保存定时任务的 Future，以便停止时取消
     private final ScheduledFuture<?>[] futures = new ScheduledFuture<?>[5];
 
@@ -60,11 +67,12 @@ public class SensorServicelmpl extends ServiceImpl<SensorMapper, SourceData> imp
         mappers[3] = dataSource4Mapper;
         mappers[4] = dataSource5Mapper;
 
-        tableNames[0] = TABLE_GPS;
-        tableNames[1] = TABLE_TEMP;
-        tableNames[2] = TABLE_HUMID;
-        tableNames[3] = TABLE_LIGHT;
-        tableNames[4] = TABLE_PRESS;
+        // 与 writeSource1~5 及常量注释保持一致
+        tableNames[0] = TABLE_GPS;      // index 0: GPS
+        tableNames[1] = TABLE_HUMID;   // index 1: 湿度
+        tableNames[2] = TABLE_LIGHT;   // index 2: 光照
+        tableNames[3] = TABLE_PRESS;   // index 3: 气压
+        tableNames[4] = TABLE_TEMP;    // index 4: 温度
     }
 
     // ====================== 开始写入（单个/全部） ======================
@@ -87,6 +95,29 @@ public class SensorServicelmpl extends ServiceImpl<SensorMapper, SourceData> imp
         if (index < 0 || index >= 5) return;
         initMappings();
         if (isRunning[index]) return; // 已经运行
+
+        // 从数据库读取最后一条数据作为初始值
+        try {
+
+            List<SourceData> lastList = readLatest(index,1);
+            if (lastList != null && !lastList.isEmpty()) {
+                double lastValue = lastList.get(0).getCol1();
+                switch (index) {
+                    case 0: currentGps = lastValue; break;
+                    case 1: currentHumid = lastValue; break;
+                    case 2: currentLight = lastValue; break;
+                    case 3: currentPress = lastValue; break;
+                    case 4: currentTemp = lastValue; break;
+                }
+                log.info("数据源 {} 从数据库恢复初始值: {}", index + 1, lastValue);
+            } else {
+                setDefaultInitialValue(index);
+            }
+        } catch (Exception e) {
+            log.warn("数据源 {} 读取数据库初始值失败，使用默认值: {}", index + 1, e.getMessage());
+            setDefaultInitialValue(index);
+        }
+
         // schedule任务，task 会调用对应的 writeSourceX
         ScheduledFuture<?> future = null;
         switch (index) {
@@ -109,6 +140,16 @@ public class SensorServicelmpl extends ServiceImpl<SensorMapper, SourceData> imp
         futures[index] = future;
         isRunning[index] = true;
         log.info("✅ 数据源 {} 已开始写入", index + 1);
+    }
+
+    private void setDefaultInitialValue(int index) {
+        switch (index) {
+            case 0: currentGps = 100.0; break;
+            case 1: currentHumid = 60.0; break;
+            case 2: currentLight = 0.5; break;
+            case 3: currentPress = 1013.25; break;
+            case 4: currentTemp = 25.0; break;
+        }
     }
 
     // ====================== 停止写入（单个/全部） ======================
@@ -140,22 +181,22 @@ public class SensorServicelmpl extends ServiceImpl<SensorMapper, SourceData> imp
 
     public void writeSource2() {
         if (!isRunning[1]) return;
-        insert(dataSource2Mapper, "温度", TABLE_TEMP);
+        insert(dataSource2Mapper, "湿度", TABLE_HUMID);
     }
 
     public void writeSource3() {
         if (!isRunning[2]) return;
-        insert(dataSource3Mapper, "湿度", TABLE_HUMID);
+        insert(dataSource3Mapper, "光照", TABLE_LIGHT);
     }
 
     public void writeSource4() {
         if (!isRunning[3]) return;
-        insert(dataSource4Mapper, "光照", TABLE_LIGHT);
+        insert(dataSource4Mapper, "气压", TABLE_PRESS);
     }
 
     public void writeSource5() {
         if (!isRunning[4]) return;
-        insert(dataSource5Mapper, "气压", TABLE_PRESS);
+        insert(dataSource5Mapper, "温度", TABLE_TEMP);
     }
 
     /**
@@ -163,41 +204,84 @@ public class SensorServicelmpl extends ServiceImpl<SensorMapper, SourceData> imp
      */
 
     /**
-     * gps  (index=0)
+     * gps  (index=0 | source=1)
      */
     private static final String TABLE_GPS = "gps_data";
     /**
-     * 温度  (index=1)
-     */
-    private static final String TABLE_TEMP = "temperature_data";
-    /**
-     * 湿度  (index=2)
+     * 湿度  (index=1 | source=2)
      */
     private static final String TABLE_HUMID = "humidity_data";
     /**
-     * 光照  (index=3)
+     * 光照  (index=2 | source=3)
      */
     private static final String TABLE_LIGHT = "light_data";
     /**
-     * 气压  (index=4)
+     * 气压  (index=3 | source=4)
      */
     private static final String TABLE_PRESS = "pressure_data";
+    /**
+     * 温度  (index=4 | source=5)
+     */
+    private static final String TABLE_TEMP = "temperature_data";
 
-    // 统一插入假数据，并将数据写入指定表
+    // 统一插入假数据，并将数据写入指定表（带平滑变化和范围限制）
     public void insert(SensorMapper mapper, String sourceName, String tableName) {
         SourceData data = new SourceData();
-        // 生成 2 位小数的随机值，范围可根据 sourceName 调整
-        double v1 = faker.number().randomDouble(2, 0, 100);
-        double v2 = faker.number().randomDouble(2, 0, 100);
-        double v3 = faker.number().randomDouble(2, 0, 100);
-        double v4 = faker.number().randomDouble(2, 0, 100);
-        double v5 = faker.number().randomDouble(2, 0, 100);
-        data.setCol1(v1);
-        data.setCol2(v2);
-        data.setCol3(v3);
-        data.setCol4(v4);
-        data.setCol5(v5);
+
+        // 根据传感器类型生成符合范围的数据，变化平滑
+        switch (tableName) {
+            case TABLE_GPS:
+                // GPS海拔：0 ~ 9000m，每次变化不超过500m
+                int gpsChangeInt = faker.number().numberBetween(-50000, 50001);
+                double gpsChange = gpsChangeInt / 100.0;
+                currentGps += gpsChange;
+                if (currentGps < 0) currentGps = 0;
+                if (currentGps > 9000) currentGps = 9000;
+                data.setCol1(Math.round(currentGps * 100.0) / 100.0);
+                break;
+            case TABLE_TEMP:
+                // 温度：-20 ~ 50°C，每次变化不超过5°C
+                int tempChangeInt = faker.number().numberBetween(-500, 501);
+                double tempChange = tempChangeInt / 100.0;
+                currentTemp += tempChange;
+                if (currentTemp < -20) currentTemp = -20;
+                if (currentTemp > 50) currentTemp = 50;
+                data.setCol1(Math.round(currentTemp * 100.0) / 100.0);
+                break;
+            case TABLE_HUMID:
+                // 湿度：0 ~ 100%RH，每次变化不超过5%
+                int humidChangeInt = faker.number().numberBetween(-1000, 1001);
+                double humidChange = humidChangeInt / 100.0;
+                currentHumid += humidChange;
+                if (currentHumid < 0) currentHumid = 0;
+                if (currentHumid > 100) currentHumid = 100;
+                data.setCol1(Math.round(currentHumid * 100.0) / 100.0);
+                break;
+            case TABLE_LIGHT:
+                // 光照：0 ~ 100 kLux，每次变化不超过10 kLux
+                int lightChangeInt = faker.number().numberBetween(-1000, 1001);
+                double lightChange = lightChangeInt / 100.0;
+                currentLight += lightChange;
+                if (currentLight < 0) currentLight = 0;
+                if (currentLight > 100) currentLight = 100;
+                data.setCol1(Math.round(currentLight * 100.0) / 100.0);
+                break;
+            case TABLE_PRESS:
+                // 气压：300 ~ 1100 hPa，每次变化不超过100 hPa
+                int pressChangeInt = faker.number().numberBetween(-10000, 10001);
+                double pressChange = pressChangeInt / 100.0;
+                currentPress += pressChange;
+                if (currentPress < 300) currentPress = 300;
+                if (currentPress > 1100) currentPress = 1100;
+                data.setCol1(Math.round(currentPress * 100.0) / 100.0);
+                break;
+            default:
+                double v1 = faker.number().randomDouble(2, 0, 100);
+                data.setCol1(v1);
+        }
+
         data.setCollect_time(LocalDateTime.now());
+
         // 使用自定义的动态表插入方法，捕获并记录异常以便排查
         try {
             int rows = mapper.insertToTable(tableName, data);
@@ -212,7 +296,7 @@ public class SensorServicelmpl extends ServiceImpl<SensorMapper, SourceData> imp
     }
 
     /**
-     * 读取指定数据源最近 N 条数据（index 0..4）
+     * 读取指定数据源最近 limit 条数据（index 0..4）
      */
     public List<SourceData> readLatest(int index, int limit) {
         initMappings();
