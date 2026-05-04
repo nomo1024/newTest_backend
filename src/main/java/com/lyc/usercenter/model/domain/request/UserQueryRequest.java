@@ -1,5 +1,6 @@
 package com.lyc.usercenter.model.domain.request;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -25,7 +26,9 @@ public class UserQueryRequest implements Serializable {
 
     private Integer userStatus;
 
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     private Date createTimeFrom;
 
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     private Date createTimeTo;
 }
