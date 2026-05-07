@@ -113,8 +113,8 @@ public class UserController {
                 queryWrapper.eq("userRole", userQueryRequest.getUserRole());
             }
             if (userQueryRequest.getUserStatus() != null) {
-                if (userQueryRequest.getUserStatus() < 0 || userQueryRequest.getUserStatus() > 1) {
-                    throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户状态只能为0或1");
+                if (userQueryRequest.getUserStatus() < 0 || userQueryRequest.getUserStatus() > 4) {
+                    throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户状态只能为0-4");
                 }
                 queryWrapper.eq("userStatus", userQueryRequest.getUserStatus());
             }

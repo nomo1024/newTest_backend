@@ -1,12 +1,13 @@
 package com.lyc.usercenter.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.github.javafaker.Faker;
 import com.lyc.usercenter.mapper.SensorMapper;
 import com.lyc.usercenter.model.domain.SourceData;
 import com.lyc.usercenter.service.SensorService;
+import com.lyc.usercenter.service.mqtt.MqttSubscribeService;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.Resource;
@@ -19,7 +20,9 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * 传感器数据写入服务
- * 默认不自动写入。通过外部调用 startWrite()/stopWrite() 控制写入。
+ * 应用启动时自动订阅 MQTT 主题接收传感器数据
+ * 通过外部调用 startWrite()/stopWrite() 控制是否写入数据库
+ * 数据来源：订阅 MQTT 主题 testtopic/1
  */
 @Component
 @Slf4j
@@ -39,18 +42,20 @@ public class SensorServicelmpl extends ServiceImpl<SensorMapper, SourceData> imp
 
     // 定时任务线程池（5个数据源）
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(5);
-    private final Faker faker = new Faker();
 
-    // 每个数据源的运行状态（index 0..4）
+    // MQTT 订阅服务（抽离后的模块）
+    @Autowired
+    private MqttSubscribeService mqttSubscribeService;
+
+    // 传感器当前值（从 MQTT 接收）
+    private volatile double currentGps = 100.0;       // 海拔，单位m
+    private volatile double currentTemp = 25.0;       // 温度，单位°C
+    private volatile double currentHumid = 60.0;      // 湿度，单位%RH
+    private volatile double currentLight = 40.0;        // 光照，单位kLux
+    private volatile double currentPress = 1013.25;   // 气压，单位hPa
+
     @Getter
     public final boolean[] isRunning = new boolean[5];
-
-    // 传感器当前值（用于生成平滑变化的数据）
-    private double currentGps = 100.0;       // 海拔，单位m
-    private double currentTemp = 25.0;       // 温度，单位°C
-    private double currentHumid = 60.0;      // 湿度，单位%RH
-    private double currentLight = 40.0;        // 光照，单位kLux（40 kLux = 40,000 Lux）
-    private double currentPress = 1013.25;   // 气压，单位hPa
 
     // 保存定时任务的 Future，以便停止时取消
     private final ScheduledFuture<?>[] futures = new ScheduledFuture<?>[5];
@@ -58,6 +63,14 @@ public class SensorServicelmpl extends ServiceImpl<SensorMapper, SourceData> imp
     // 所有 mapper 和表名按 index 对应
     private final SensorMapper[] mappers = new SensorMapper[5];
     private final String[] tableNames = new String[5];
+
+    // 应用启动时设置消息处理器
+    @javax.annotation.PostConstruct
+    public void init() {
+        // 设置 MQTT 消息处理器
+        mqttSubscribeService.setMessageHandler(this::parseSensorData);
+        initMappings();
+    }
 
     // 初始化映射关系
     private void initMappings() {
@@ -73,6 +86,46 @@ public class SensorServicelmpl extends ServiceImpl<SensorMapper, SourceData> imp
         tableNames[2] = TABLE_LIGHT;   // index 2: 光照
         tableNames[3] = TABLE_PRESS;   // index 3: 气压
         tableNames[4] = TABLE_TEMP;    // index 4: 温度
+    }
+
+    // 解析传感器数据并更新当前值
+    private void parseSensorData(String json) {
+        try {
+            // 简单解析 JSON（假设格式包含传感器数据）
+            // 示例: {"gps": 100.5, "temp": 25.3, "humid": 60.0, "light": 40.0, "press": 1013.25}
+            if (json.contains("\"gps\"")) {
+                currentGps = extractValue(json, "\"gps\"");
+            }
+            if (json.contains("\"temp\"")) {
+                currentTemp = extractValue(json, "\"temp\"");
+            }
+            if (json.contains("\"humid\"")) {
+                currentHumid = extractValue(json, "\"humid\"");
+            }
+            if (json.contains("\"light\"")) {
+                currentLight = extractValue(json, "\"light\"");
+            }
+            if (json.contains("\"press\"")) {
+                currentPress = extractValue(json, "\"press\"");
+            }
+        } catch (Exception e) {
+            log.warn("解析传感器数据失败: {}", e.getMessage());
+        }
+    }
+
+    private double extractValue(String json, String key) {
+        try {
+            int idx = json.indexOf(key);
+            if (idx == -1) return 0;
+            int start = json.indexOf(':', idx) + 1;
+            int end = json.indexOf(',', start);
+            if (end == -1) end = json.indexOf('}', start);
+            if (end == -1) end = json.length();
+            String val = json.substring(start, end).trim();
+            return Double.parseDouble(val);
+        } catch (Exception e) {
+            return 0;
+        }
     }
 
     // ====================== 开始写入（单个/全部） ======================
@@ -225,60 +278,29 @@ public class SensorServicelmpl extends ServiceImpl<SensorMapper, SourceData> imp
     private static final String TABLE_TEMP = "temperature_data";
 
     //@todo faker假数据改用MQTT协议生成数据
-    // 统一插入假数据，并将数据写入指定表（带平滑变化和范围限制）
+    // 统一插入数据（从 MQTT 接收的传感器数据）
     public void insert(SensorMapper mapper, String sourceName, String tableName) {
         SourceData data = new SourceData();
 
-        // 根据传感器类型生成符合范围的数据，变化平滑
+        // 使用从 MQTT 接收的当前值
         switch (tableName) {
             case TABLE_GPS:
-                // GPS海拔：0 ~ 9000m，每次变化不超过500m
-                int gpsChangeInt = faker.number().numberBetween(-50000, 50001);
-                double gpsChange = gpsChangeInt / 100.0;
-                currentGps += gpsChange;
-                if (currentGps < 0) currentGps = 0;
-                if (currentGps > 9000) currentGps = 9000;
                 data.setCol1(Math.round(currentGps * 100.0) / 100.0);
                 break;
             case TABLE_TEMP:
-                // 温度：-20 ~ 50°C，每次变化不超过5°C
-                int tempChangeInt = faker.number().numberBetween(-500, 501);
-                double tempChange = tempChangeInt / 100.0;
-                currentTemp += tempChange;
-                if (currentTemp < -20) currentTemp = -20;
-                if (currentTemp > 50) currentTemp = 50;
                 data.setCol1(Math.round(currentTemp * 100.0) / 100.0);
                 break;
             case TABLE_HUMID:
-                // 湿度：0 ~ 100%RH，每次变化不超过5%
-                int humidChangeInt = faker.number().numberBetween(-1000, 1001);
-                double humidChange = humidChangeInt / 100.0;
-                currentHumid += humidChange;
-                if (currentHumid < 0) currentHumid = 0;
-                if (currentHumid > 100) currentHumid = 100;
                 data.setCol1(Math.round(currentHumid * 100.0) / 100.0);
                 break;
             case TABLE_LIGHT:
-                // 光照：0 ~ 100 kLux，每次变化不超过10 kLux
-                int lightChangeInt = faker.number().numberBetween(-1000, 1001);
-                double lightChange = lightChangeInt / 100.0;
-                currentLight += lightChange;
-                if (currentLight < 0) currentLight = 0;
-                if (currentLight > 100) currentLight = 100;
                 data.setCol1(Math.round(currentLight * 100.0) / 100.0);
                 break;
             case TABLE_PRESS:
-                // 气压：300 ~ 1100 hPa，每次变化不超过100 hPa
-                int pressChangeInt = faker.number().numberBetween(-10000, 10001);
-                double pressChange = pressChangeInt / 100.0;
-                currentPress += pressChange;
-                if (currentPress < 300) currentPress = 300;
-                if (currentPress > 1100) currentPress = 1100;
                 data.setCol1(Math.round(currentPress * 100.0) / 100.0);
                 break;
             default:
-                double v1 = faker.number().randomDouble(2, 0, 100);
-                data.setCol1(v1);
+                data.setCol1(0.0);
         }
 
         data.setCollect_time(LocalDateTime.now());
