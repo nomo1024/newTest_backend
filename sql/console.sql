@@ -1,4 +1,4 @@
-create table 实训作业.gps_data
+create table yupi.gps_data
 (
     id           bigint auto_increment comment '主键ID'
         primary key,
@@ -8,9 +8,9 @@ create table 实训作业.gps_data
     comment 'GPS数据表' charset = utf8mb4;
 
 create index idx_collect_time
-    on 实训作业.gps_data (collect_time);
+    on yupi.gps_data (collect_time);
 
-create table 实训作业.humidity_data
+create table yupi.humidity_data
 (
     id           bigint auto_increment comment '主键ID'
         primary key,
@@ -20,9 +20,9 @@ create table 实训作业.humidity_data
     comment '湿度数据表' charset = utf8mb4;
 
 create index idx_collect_time
-    on 实训作业.humidity_data (collect_time);
+    on yupi.humidity_data (collect_time);
 
-create table 实训作业.light_data
+create table yupi.light_data
 (
     id           bigint auto_increment comment '主键ID'
         primary key,
@@ -32,9 +32,9 @@ create table 实训作业.light_data
     comment '光照数据表' charset = utf8mb4;
 
 create index idx_collect_time
-    on 实训作业.light_data (collect_time);
+    on yupi.light_data (collect_time);
 
-create table 实训作业.pressure_data
+create table yupi.pressure_data
 (
     id           bigint auto_increment comment '主键ID'
         primary key,
@@ -44,9 +44,9 @@ create table 实训作业.pressure_data
     comment '气压数据表' charset = utf8mb4;
 
 create index idx_collect_time
-    on 实训作业.pressure_data (collect_time);
+    on yupi.pressure_data (collect_time);
 
-create table 实训作业.temperature_data
+create table yupi.temperature_data
 (
     id           bigint auto_increment comment '主键ID'
         primary key,
@@ -56,9 +56,9 @@ create table 实训作业.temperature_data
     comment '温度数据表' charset = utf8mb4;
 
 create index idx_collect_time
-    on 实训作业.temperature_data (collect_time);
+    on yupi.temperature_data (collect_time);
 
-create table 实训作业.user
+create table yupi.user
 (
     id           int auto_increment
         primary key,

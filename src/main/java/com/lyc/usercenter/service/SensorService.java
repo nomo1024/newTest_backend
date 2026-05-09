@@ -1,26 +1,19 @@
 package com.lyc.usercenter.service;
 
-import com.baomidou.mybatisplus.extension.service.IService;
 import com.lyc.usercenter.mapper.SensorMapper;
 import com.lyc.usercenter.model.domain.SourceData;
 
- public interface SensorService extends IService<SourceData> {
+public interface SensorService {
 
-     void startWrite();
+    void startWrite();
 
-     void stopWrite();
+    void stopWrite();
 
-     void writeSource1();
+    void startWrite(int index);
 
-     void writeSource2();
-
-     void writeSource3();
-
-     void writeSource4();
-
-     void writeSource5();
-
-     void insert(SensorMapper mapper, String sourceName, String tableName);
+    void stopWrite(int index);
 
 
+
+    void insert(SensorMapper mapper, String sourceName, String tableName);
 }
